@@ -1,0 +1,45 @@
+blog_scraping_task:
+  description: >
+    Scrape the blog content from the provided URL: {blog_url}
+    Extract the main article content, title, author, and any relevant metadata.
+    Ensure you capture only the valuable content while filtering out navigation, ads, and sidebar content.
+    The scraped content should be clean, well-structured, and ready for processing into a podcast script.
+  expected_output: >
+    Clean, structured blog content including title, author, and main article text.
+    The content should be properly formatted and ready for podcast script generation.
+  agent: blog_scraper
+
+script_generation_task:
+  description: >
+    Transform the scraped blog content into an engaging, conversational podcast script.
+    Create a script that:
+    - Has a compelling introduction that hooks listeners
+    - Presents the main points in a natural, conversational flow
+    - Includes smooth transitions between topics
+    - Uses language optimized for text-to-speech synthesis
+    - Has a strong conclusion with key takeaways
+    - Is approximately 3-7 minutes when read aloud (450-1050 words)
+    Focus on making the content accessible and entertaining for audio consumption.
+  expected_output: >
+    A complete podcast script formatted for text-to-speech conversion.
+    The script should be engaging, well-structured, and optimized for audio delivery.
+    Include natural speech patterns and appropriate pacing markers.
+  agent: content_processor
+  context:
+    - blog_scraping_task
+
+audio_generation_task:
+  description: >
+    Generate high-quality audio from the podcast script using text-to-speech technology.
+    Use the voice setting: {voice} (default: alloy)
+    Optimize the audio for podcast distribution with professional quality.
+    Save the generated audio file in MP3 format in the output/audio directory.
+    Provide details about file size, estimated cost, and audio specifications.
+  expected_output: >
+    A professional-quality MP3 audio file ready for podcast distribution.
+    Include file path, size information, and generation details in the output.
+    The audio should sound natural and engaging for listeners.
+  agent: audio_producer
+  context:
+    - script_generation_task
+  output_file: 'output/metadata/podcast_audio_info.txt'
