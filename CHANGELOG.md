@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2025-01-25 - README Modernization
+
+### Documentation - Major README Update
+- **Installation Modernization**: Updated to reflect current `pyproject.toml`-based setup
+  - Added UV package manager support as recommended method
+  - Removed outdated `requirements.txt` references
+  - Added multiple installation methods (UV, pip, direct)
+- **Environment Variables**: Updated with complete `.env` setup including new audio controls
+  - Added `AUDIO_SPEED` and `AUDIO_PITCH` configuration options
+  - Included `.env.example` copy instructions
+- **CLI Commands**: Updated all command examples to match actual `main.py` implementation
+  - Added `python -m blog_to_podcast.main` alternative syntax
+  - Corrected script entry points and usage examples
+- **Project Structure**: Updated output directory structure to match current layout
+  - Added `metadata/` and `scripts/` subdirectories
+  - Documented current tool structure
+- **Python Version Requirements**: Clarified Python 3.10-3.13 support (3.14+ not supported)
+- **Enhanced Troubleshooting**: Added modern installation and dependency issues
+  - UV package manager troubleshooting
+  - Python version compatibility issues
+  - Build tools and dependencies installation
+
+### Technical Accuracy Improvements
+- **Prerequisites**: Added Firecrawl API key requirement
+- **Tools Documentation**: Listed current specialized tools
+- **Recent Updates**: Updated with accurate modernization improvements
+- **Examples**: All CLI examples now match actual implementation
+
+### Files Modified
+- README.md - Comprehensive modernization to match current project state
+
+## [1.1.2] - 2025-01-25 - README Update
+
+### Documentation
+- **Updated README.md**: Corrected GitHub repository URL to https://github.com/Ocolus1/blog-to-podcast-ai.git
+- **Enhanced Streamlit Instructions**: Added comprehensive guide for running the app with Streamlit
+  - Multiple launch methods (direct streamlit, python -m streamlit, custom ports)
+  - Clear web interface access instructions with URLs
+  - Added troubleshooting for common Streamlit issues
+- **Enhanced Features**: Added highlights for modern web UI and persistent downloads
+- **Recent Updates Section**: Added comprehensive changelog of recent improvements
+- **Windows Support**: Added troubleshooting section for Microsoft Visual C++ build tools issues
+- **Improved Links**: Added prominent GitHub repository link with call-to-action
+
+### Files Modified
+- README.md - Comprehensive updates with correct repository URL and enhanced Streamlit documentation
+
 ## [1.1.1] - 2025-01-25 - UI Download Fix
 
 ### Bug Fixes
