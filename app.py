@@ -263,6 +263,79 @@ def run_conversion(blog_url: str, voice: str, show_progress: bool = True):
             status_text.text(error_msg)
         return None, error_msg
 
+def get_all_audio_files():
+    """Get all audio files with metadata, organized by session"""
+    audio_dir = Path("output/audio")
+    
+    if not audio_dir.exists():
+        return []
+    
+    all_files = list(audio_dir.glob("*.mp3"))
+    if not all_files:
+        return []
+    
+    # Group files by sessions
+    sessions = {}
+    
+    for file in all_files:
+        file_stem = file.stem
+        session_key = None
+        part_number = 1
+        
+        # Determine session grouping and part number
+        if "_part" in file_stem and file_stem.split("_part")[-1].isdigit():
+            # Pattern: name_partN
+            base_name = file_stem.rsplit("_part", 1)[0]
+            part_number = int(file_stem.split("_part")[-1])
+            session_key = base_name
+        elif file_stem.startswith("part") and "_" in file_stem:
+            # Pattern: partN_name
+            parts = file_stem.split("_", 1)
+            if len(parts) == 2 and parts[0].startswith("part") and parts[0][4:].isdigit():
+                base_name = parts[1]
+                part_number = int(parts[0][4:])
+                session_key = base_name
+        else:
+            # Single file or unknown pattern
+            session_key = file_stem
+            part_number = 1
+        
+        if session_key not in sessions:
+            sessions[session_key] = []
+        
+        # Add file info
+        file_info = {
+            'file': file,
+            'name': file.name,
+            'size': os.path.getsize(file),
+            'created': datetime.fromtimestamp(os.path.getctime(file)),
+            'part_number': part_number
+        }
+        sessions[session_key].append(file_info)
+    
+    # Sort files within each session by part number
+    for session_key in sessions:
+        sessions[session_key].sort(key=lambda x: x['part_number'])
+    
+    # Sort sessions by most recent file creation time
+    session_list = []
+    for session_key, files in sessions.items():
+        most_recent = max(files, key=lambda x: x['created'])['created']
+        total_size = sum(f['size'] for f in files)
+        
+        session_list.append({
+            'name': session_key,
+            'files': files,
+            'created': most_recent,
+            'total_size': total_size,
+            'part_count': len(files)
+        })
+    
+    # Sort by creation time (newest first)
+    session_list.sort(key=lambda x: x['created'], reverse=True)
+    
+    return session_list
+
 def find_generated_files():
     """Find the most recently generated audio and script files"""
     audio_dir = Path("output/audio")
@@ -276,22 +349,59 @@ def find_generated_files():
         if all_audio_files:
             # Get the most recent audio file to determine the session
             most_recent = max(all_audio_files, key=os.path.getctime)
+            most_recent_name = most_recent.stem
             
-            # Extract base name (without part number) to find all related files
-            most_recent_name = most_recent.stem  # e.g., "code_and_culture_part4"
+            # Determine the pattern and base name for this session
+            base_name = None
+            pattern_found = False
             
-            # Check if this is a multi-part file
-            if "_part" in most_recent_name:
-                base_name = most_recent_name.rsplit("_part", 1)[0]  # e.g., "code_and_culture"
-                
+            # Pattern 1: name_partN (e.g., "backend_development_podcast_part1")
+            if "_part" in most_recent_name and most_recent_name.split("_part")[-1].isdigit():
+                base_name = most_recent_name.rsplit("_part", 1)[0]
+                pattern = f"{base_name}_part"
+                pattern_found = True
+            
+            # Pattern 2: partN_name (e.g., "part1_podcast_episode") 
+            elif most_recent_name.startswith("part") and "_" in most_recent_name:
+                # Extract everything after "partN_"
+                parts = most_recent_name.split("_", 1)
+                if len(parts) == 2 and parts[0].startswith("part") and parts[0][4:].isdigit():
+                    base_name = parts[1]  # e.g., "podcast_episode"
+                    pattern = f"part*_{base_name}"
+                    pattern_found = True
+            
+            if pattern_found and base_name:
                 # Find all parts of this session
                 related_files = []
                 for file in all_audio_files:
-                    if file.stem.startswith(base_name + "_part"):
+                    file_stem = file.stem
+                    
+                    # Check both patterns
+                    if (file_stem.startswith(f"{base_name}_part") and 
+                        file_stem.split("_part")[-1].isdigit()):
                         related_files.append(file)
+                    elif (file_stem.startswith("part") and f"_{base_name}" in file_stem and
+                          "_" in file_stem):
+                        # For partN_name pattern
+                        parts = file_stem.split("_", 1)
+                        if (len(parts) == 2 and parts[0].startswith("part") and 
+                            parts[0][4:].isdigit() and parts[1] == base_name):
+                            related_files.append(file)
                 
-                # Sort by part number
-                audio_files = sorted(related_files, key=lambda x: x.stem)
+                if related_files:
+                    # Sort by part number - handle both patterns
+                    def get_part_number(file_path):
+                        stem = file_path.stem
+                        if stem.startswith(f"{base_name}_part"):
+                            return int(stem.split("_part")[-1])
+                        elif stem.startswith("part"):
+                            return int(stem.split("_")[0][4:])
+                        return 0
+                    
+                    audio_files = sorted(related_files, key=get_part_number)
+                else:
+                    # Fallback to just the most recent file
+                    audio_files = [most_recent]
             else:
                 # Single file, not multi-part
                 audio_files = [most_recent]
@@ -307,6 +417,106 @@ def find_generated_files():
         'script': script_file if script_file.exists() else None,
         'info': info_file if info_file.exists() else None
     }
+
+def display_all_audio():
+    """Display all audio files organized by sessions"""
+    sessions = get_all_audio_files()
+    
+    if not sessions:
+        st.info("🎵 No audio files found yet. Convert your first blog post to get started!")
+        return
+    
+    # Summary stats
+    total_sessions = len(sessions)
+    total_files = sum(s['part_count'] for s in sessions)
+    total_size = sum(s['total_size'] for s in sessions)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📁 Total Sessions", total_sessions)
+    with col2:
+        st.metric("🎵 Total Files", total_files)
+    with col3:
+        st.metric("💾 Total Size", f"{total_size/(1024*1024):.1f} MB")
+    
+    st.markdown("---")
+    
+    # Session display
+    for i, session in enumerate(sessions):
+        session_name = session['name'].replace('_', ' ').title()
+        created_date = session['created'].strftime('%Y-%m-%d %H:%M')
+        
+        with st.expander(
+            f"🎙️ {session_name} ({session['part_count']} parts) - {created_date}",
+            expanded=(i == 0)  # Expand the most recent session
+        ):
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Display each file in the session
+                if len(session['files']) > 1:
+                    st.info(f"📢 Multi-part podcast with {len(session['files'])} parts")
+                
+                for file_info in session['files']:
+                    part_label = f"Part {file_info['part_number']}" if len(session['files']) > 1 else "Audio"
+                    
+                    st.markdown(f"**🎧 {part_label}: {file_info['name']}**")
+                    
+                    # Audio player
+                    try:
+                        with open(file_info['file'], 'rb') as f:
+                            audio_bytes = f.read()
+                        st.audio(audio_bytes, format='audio/mp3')
+                        
+                        # File info and download
+                        file_size_mb = file_info['size'] / (1024 * 1024)
+                        col_info, col_download = st.columns([2, 1])
+                        
+                        with col_info:
+                            st.caption(f"📏 Size: {file_size_mb:.2f} MB | 📅 Created: {file_info['created'].strftime('%m/%d %H:%M')}")
+                        
+                        with col_download:
+                            st.download_button(
+                                label=f"📥 Download",
+                                data=audio_bytes,
+                                file_name=file_info['name'],
+                                mime="audio/mp3",
+                                key=f"download_{session['name']}_{file_info['part_number']}"
+                            )
+                        
+                    except Exception as e:
+                        st.error(f"❌ Could not load audio file: {e}")
+                    
+                    if len(session['files']) > 1:
+                        st.markdown("---")
+            
+            with col2:
+                # Session stats
+                st.markdown("**📊 Session Info**")
+                st.write(f"🎵 Parts: {session['part_count']}")
+                st.write(f"💾 Size: {session['total_size']/(1024*1024):.1f} MB")
+                st.write(f"📅 Created: {created_date}")
+                
+                # Download all parts of this session
+                if len(session['files']) > 1:
+                    st.markdown("**⬇️ Batch Download**")
+                    if st.button(f"📦 Download All Parts", key=f"download_all_{session['name']}"):
+                        # Create a zip file with all parts
+                        import zipfile
+                        import io
+                        
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            for file_info in session['files']:
+                                zip_file.write(file_info['file'], file_info['name'])
+                        
+                        st.download_button(
+                            label="📁 Download ZIP",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"{session['name']}_all_parts.zip",
+                            mime="application/zip",
+                            key=f"zip_download_{session['name']}"
+                        )
 
 def display_results(files: dict):
     """Display the conversion results with audio player and downloads"""
@@ -417,7 +627,7 @@ def main():
     selected_voice, show_progress, auto_play = create_sidebar()
     
     # Main content
-    tab1, tab2, tab3 = st.tabs(["🎙️ Convert", "📚 Examples", "🔧 Settings"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🎙️ Convert", "🎵 All Audio", "📚 Examples", "🔧 Settings"])
     
     with tab1:
         # URL input section
@@ -489,6 +699,12 @@ def main():
             show_features()
     
     with tab2:
+        st.markdown("## 🎵 All Generated Audio Files")
+        st.markdown("Browse and download all your podcast conversions from this central hub.")
+        
+        display_all_audio()
+    
+    with tab3:
         st.markdown("## 📚 Examples & Use Cases")
         
         st.markdown("""
@@ -518,7 +734,7 @@ def main():
         st.markdown("### 🎵 Sample Outputs")
         st.info("🎧 Generated podcasts are typically 3-7 minutes long with professional narration quality")
     
-    with tab3:
+    with tab4:
         st.markdown("## 🔧 Configuration")
         
         # API key status
